@@ -1,4 +1,4 @@
-Here’s a practical, pattern-rich guide to squeezing the **maximum** value out of Bicep’s type system—so your IaC reads like a well-typed domain model, catches mistakes early, and stays refactor-friendly at scale.
+# Bicep Best Practices Guide: Squeezing Every Drop of Value Out of the Type System
 
 ---
 
