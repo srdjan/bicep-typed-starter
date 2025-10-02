@@ -79,12 +79,15 @@ This project uses **discriminated unions** and **union types** to enforce correc
 ```
 main.bicep              # Root orchestrator with type definitions and module composition
 ├── modules/
-│   ├── network/        # Network resources (VNets, subnets)
-│   ├── app/           # App Service Plan and Web App
-│   └── monitor/       # Diagnostic settings
+│   ├── network/        # Network resources (VNets, NSGs, subnets)
+│   │   ├── vnet.bicep  # Virtual Network with subnet configuration
+│   │   └── nsg.bicep   # Network Security Groups with rule definitions
+│   ├── app/           # App Service Plan and Web App with managed identity
+│   └── monitor/       # Diagnostic settings with comprehensive logging
 ├── extensions/
 │   └── graph/         # Microsoft Graph resources (Entra ID groups/apps) - tenant scope
 ├── env/               # Environment-specific .bicepparam files
+├── examples/          # Usage examples for modules
 └── policy/            # PSRule validation rules
 ```
 
@@ -97,9 +100,10 @@ main.bicep              # Root orchestrator with type definitions and module com
 ### Type Patterns in Use
 
 1. **Discriminated unions** (`Ingress`): Pattern matching via `kind` field enables conditional logic in modules
-2. **Optional properties** (`diagnostics?`, `costCenter?`): Use `?` suffix for nullable fields
+2. **Optional properties** (`diagnostics?`, `costCenter?`, `capacity?`): Use `?` suffix for nullable fields
 3. **Nested structural types**: `AppConfig` embeds `Ingress`, `Diagnostics`, and `TagPolicy`
-4. **Tier mapping**: Convert abstract tier (`basic`|`standard`|`premium`) to Azure SKU names via ternary expressions
+4. **Parameter validation**: `@minLength`, `@maxLength`, `@minValue`, `@maxValue` decorators enforce constraints
+5. **Tier mapping**: SKU map object converts abstract tiers to Azure SKU names and tier strings
 
 ### Parameter File Pattern
 
@@ -119,27 +123,42 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 1. Define types in `main.bicep` if shared across modules
 2. Re-declare needed types in individual modules (no cross-file type imports)
 3. Use discriminated unions for polymorphic resources (follow `Ingress` pattern)
+4. Add `@description`, `@minLength`, `@maxLength` decorators for all parameters
 
 ### Adding New Modules
 1. Create module in `modules/<category>/<name>.bicep`
-2. Define input parameter types at module level
-3. Export outputs with explicit types
-4. Reference in `main.bicep` with typed parameters
+2. Define input parameter types at module level with validation decorators
+3. Add `@description` to all parameters and outputs
+4. Export outputs with explicit types and descriptions
+5. Reference in `main.bicep` with typed parameters
+6. See `examples/` directory for usage patterns
+
+### Security Best Practices
+- **Managed Identity**: All App Services have system-assigned identity enabled
+- **TLS**: Minimum TLS 1.2 enforced on all web apps
+- **FTPS**: Disabled by default (use HTTPS for deployments)
+- **HTTP/2**: Enabled for better performance
+- **Network Security**: Use NSG module to define network-level access controls
 
 ### Validation Strategy
-- **Compile-time**: Bicep type system enforces parameter contracts
+- **Compile-time**: Bicep type system + parameter decorators enforce contracts
 - **Pre-deployment**: `az deployment group validate` checks ARM API compliance
 - **Policy**: PSRule validates against Azure Well-Architected Framework (see `policy/Rules/`)
 
 ### Common Type Errors
 - **Missing discriminator**: Ensure union variants have unique `kind` values
-- **Type redeclaration mismatch**: Types must match exactly between main and modules
+- **Type redeclaration mismatch**: Types must match exactly between main and modules (including decorators)
 - **Null handling**: Use `!` non-null assertion operator when Bicep can't infer (`diag!.workspaceId`)
+- **Capacity limits**: App Service capacity is capped at 30 instances via `@maxValue(30)`
 
 ## Key Files
 
 - [main.bicep](main.bicep) - Root template with type definitions and module orchestration
 - [bicepconfig.json](bicepconfig.json) - Enables `userDefinedTypes` experimental feature
 - [env/dev.bicepparam](env/dev.bicepparam) - Development environment parameters
-- [modules/app/appservice.bicep](modules/app/appservice.bicep) - Shows discriminated union usage for ingress patterns
-- [extensions/graph/entra-group.bicep](extensions/graph/entra-group.bicep) - Microsoft Graph extension example
+- [modules/app/appservice.bicep](modules/app/appservice.bicep) - App Service with managed identity, security hardening, discriminated unions
+- [modules/network/vnet.bicep](modules/network/vnet.bicep) - Virtual Network with configurable location
+- [modules/network/nsg.bicep](modules/network/nsg.bicep) - Network Security Group with typed rules
+- [modules/monitor/diagnostics.bicep](modules/monitor/diagnostics.bicep) - Comprehensive diagnostic settings for App Service
+- [extensions/graph/entra-group.bicep](extensions/graph/entra-group.bicep) - Microsoft Graph extension for Entra ID groups
+- [examples/nsg-example.bicep](examples/nsg-example.bicep) - Example NSG configuration with web app rules
