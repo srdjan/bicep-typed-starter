@@ -1,0 +1,32 @@
+name: bicep
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-bicep@v2
+      - run: az bicep build --file main.bicep
+
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-bicep@v2
+      - name: Build
+        run: az bicep build --file main.bicep --outFile out.json
+      - name: Install Template Analyzer
+        run: |
+          dotnet tool install --global Microsoft.TemplateAnalyzer.Cli --version 0.1.13
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+      - name: Run Template Analyzer
+        run: templateanalyzer analyze-template --templateFile out.json
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
+        with:
+          pwsh-version: '7.4.x'
+      - name: Run PSRule
+        run: |
+          pwsh -c "Install-Module PSRule.Rules.Azure -Scope CurrentUser -Force; `
+                   Invoke-PSRule -InputPath . -Option policy/ps-rule.yaml"

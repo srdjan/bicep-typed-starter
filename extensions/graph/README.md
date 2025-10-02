@@ -1,0 +1,1 @@
+See entra-group.bicep and entra-app-registration.bicep

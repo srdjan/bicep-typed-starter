@@ -1,0 +1,8 @@
+requires:
+  - PSRule.Rules.Azure
+rule:
+  includeLocal: true
+binding:
+  targetType:
+  - resourceType
+  - type
