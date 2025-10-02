@@ -25,6 +25,24 @@ type Diagnostics = {
   retentionDays: int?
 }
 
+type AutoScaleSettings = {
+  @minValue(1)
+  @maxValue(30)
+  minCapacity: int
+  @minValue(1)
+  @maxValue(30)
+  maxCapacity: int
+  @minValue(1)
+  @maxValue(30)
+  defaultCapacity: int
+  @minValue(1)
+  @maxValue(100)
+  scaleOutCpuThreshold: int?
+  @minValue(1)
+  @maxValue(100)
+  scaleInCpuThreshold: int?
+}
+
 type AppConfig = {
   @minLength(3)
   @maxLength(60)
@@ -36,6 +54,8 @@ type AppConfig = {
   capacity: int?
   ingress: Ingress
   diagnostics: Diagnostics?
+  autoScale: AutoScaleSettings?
+  enableDeleteLock: bool?
 }
 
 type VnetInput = {

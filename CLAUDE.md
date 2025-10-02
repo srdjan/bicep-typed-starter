@@ -100,10 +100,14 @@ main.bicep              # Root orchestrator with type definitions and module com
 ### Type Patterns in Use
 
 1. **Discriminated unions** (`Ingress`): Pattern matching via `kind` field enables conditional logic in modules
-2. **Optional properties** (`diagnostics?`, `costCenter?`, `capacity?`): Use `?` suffix for nullable fields
-3. **Nested structural types**: `AppConfig` embeds `Ingress`, `Diagnostics`, and `TagPolicy`
+   - `publicIp`: Public internet access with optional DNS label
+   - `privateLink`: Private endpoint with VNet integration (fully implemented)
+   - `appGateway`: Application Gateway integration (structure defined)
+2. **Optional properties** (`diagnostics?`, `costCenter?`, `capacity?`, `autoScale?`): Use `?` suffix for nullable fields
+3. **Nested structural types**: `AppConfig` embeds `Ingress`, `Diagnostics`, `TagPolicy`, and `AutoScaleSettings`
 4. **Parameter validation**: `@minLength`, `@maxLength`, `@minValue`, `@maxValue` decorators enforce constraints
 5. **Tier mapping**: SKU map object converts abstract tiers to Azure SKU names and tier strings
+6. **Conditional resources**: Private endpoints, auto-scaling, diagnostics, and locks deploy conditionally based on configuration
 
 ### Parameter File Pattern
 
@@ -139,6 +143,9 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 - **FTPS**: Disabled by default (use HTTPS for deployments)
 - **HTTP/2**: Enabled for better performance
 - **Network Security**: Use NSG module to define network-level access controls
+- **Private Endpoints**: Full support for Private Link ingress with VNet integration
+- **Public Access Control**: Automatically disabled when using privateLink ingress
+- **Resource Locks**: Optional `CanNotDelete` locks for production resources (set `enableDeleteLock: true`)
 
 ### Validation Strategy
 - **Compile-time**: Bicep type system + parameter decorators enforce contracts
@@ -151,14 +158,52 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 - **Null handling**: Use `!` non-null assertion operator when Bicep can't infer (`diag!.workspaceId`)
 - **Capacity limits**: App Service capacity is capped at 30 instances via `@maxValue(30)`
 
+## Advanced Features
+
+### Auto-Scaling
+Configure CPU-based auto-scaling with the `autoScale` property:
+```bicep
+autoScale: {
+  minCapacity: 2
+  maxCapacity: 10
+  defaultCapacity: 3
+  scaleOutCpuThreshold: 75  // Scale out when CPU > 75%
+  scaleInCpuThreshold: 25   // Scale in when CPU < 25%
+}
+```
+
+### Private Link Integration
+Deploy App Service with private endpoint access:
+```bicep
+ingress: {
+  kind: 'privateLink'
+  vnetId: '/subscriptions/.../virtualNetworks/vnet-hub'
+  subnetName: 'private-endpoints'
+}
+```
+This automatically:
+- Disables public network access
+- Creates a private endpoint in the specified subnet
+- Enables VNet integration
+- Routes all outbound traffic through VNet
+
+### Resource Protection
+Enable delete locks for production resources:
+```bicep
+enableDeleteLock: true  // Applies CanNotDelete lock to App Service and Plan
+```
+
 ## Key Files
 
 - [main.bicep](main.bicep) - Root template with type definitions and module orchestration
 - [bicepconfig.json](bicepconfig.json) - Enables `userDefinedTypes` experimental feature
 - [env/dev.bicepparam](env/dev.bicepparam) - Development environment parameters
-- [modules/app/appservice.bicep](modules/app/appservice.bicep) - App Service with managed identity, security hardening, discriminated unions
+- [env/prod.bicepparam](env/prod.bicepparam) - Production environment with auto-scaling and locks
+- [env/privatelink.bicepparam](env/privatelink.bicepparam) - Private Link configuration example
+- [modules/app/appservice.bicep](modules/app/appservice.bicep) - App Service with managed identity, security hardening, auto-scaling, private endpoints
 - [modules/network/vnet.bicep](modules/network/vnet.bicep) - Virtual Network with configurable location
 - [modules/network/nsg.bicep](modules/network/nsg.bicep) - Network Security Group with typed rules
 - [modules/monitor/diagnostics.bicep](modules/monitor/diagnostics.bicep) - Comprehensive diagnostic settings for App Service
 - [extensions/graph/entra-group.bicep](extensions/graph/entra-group.bicep) - Microsoft Graph extension for Entra ID groups
 - [examples/nsg-example.bicep](examples/nsg-example.bicep) - Example NSG configuration with web app rules
+- [examples/complete-deployment.bicep](examples/complete-deployment.bicep) - Full-featured deployment with NSG, VNet, App Service, auto-scaling, and locks
