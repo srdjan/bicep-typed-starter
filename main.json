@@ -1,0 +1,1096 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.3.11034",
+      "templateHash": "14406696636053689808"
+    }
+  },
+  "definitions": {
+    "Env": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "prod",
+        "test"
+      ]
+    },
+    "Region": {
+      "type": "string",
+      "allowedValues": [
+        "eastus",
+        "westeurope",
+        "westus"
+      ]
+    },
+    "AppTier": {
+      "type": "string",
+      "allowedValues": [
+        "basic",
+        "premium",
+        "standard"
+      ]
+    },
+    "TagPolicy": {
+      "type": "object",
+      "properties": {
+        "env": {
+          "type": "string",
+          "allowedValues": [
+            "dev",
+            "prod",
+            "test"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "costCenter": {
+          "type": "string",
+          "nullable": true,
+          "minLength": 3,
+          "maxLength": 50
+        }
+      }
+    },
+    "Ingress": {
+      "type": "object",
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "publicIp": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "allowedValues": [
+                  "publicIp"
+                ]
+              },
+              "sku": {
+                "type": "string",
+                "allowedValues": [
+                  "Basic",
+                  "Standard"
+                ]
+              },
+              "dnsLabel": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "privateLink": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "allowedValues": [
+                  "privateLink"
+                ]
+              },
+              "vnetId": {
+                "type": "string"
+              },
+              "subnetName": {
+                "type": "string"
+              }
+            }
+          },
+          "appGateway": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "allowedValues": [
+                  "appGateway"
+                ]
+              },
+              "appGatewayId": {
+                "type": "string"
+              },
+              "listenerName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Diagnostics": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "nullable": true
+        },
+        "retentionDays": {
+          "type": "int",
+          "nullable": true,
+          "minValue": 1,
+          "maxValue": 365
+        }
+      }
+    },
+    "AutoScaleSettings": {
+      "type": "object",
+      "properties": {
+        "minCapacity": {
+          "type": "int",
+          "minValue": 1,
+          "maxValue": 30
+        },
+        "maxCapacity": {
+          "type": "int",
+          "minValue": 1,
+          "maxValue": 30
+        },
+        "defaultCapacity": {
+          "type": "int",
+          "minValue": 1,
+          "maxValue": 30
+        },
+        "scaleOutCpuThreshold": {
+          "type": "int",
+          "nullable": true,
+          "minValue": 1,
+          "maxValue": 100
+        },
+        "scaleInCpuThreshold": {
+          "type": "int",
+          "nullable": true,
+          "minValue": 1,
+          "maxValue": 100
+        }
+      }
+    },
+    "AppConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 60
+        },
+        "location": {
+          "$ref": "#/definitions/Region"
+        },
+        "tier": {
+          "$ref": "#/definitions/AppTier"
+        },
+        "capacity": {
+          "type": "int",
+          "nullable": true,
+          "minValue": 1,
+          "maxValue": 30
+        },
+        "ingress": {
+          "$ref": "#/definitions/Ingress"
+        },
+        "diagnostics": {
+          "$ref": "#/definitions/Diagnostics",
+          "nullable": true
+        },
+        "autoScale": {
+          "$ref": "#/definitions/AutoScaleSettings",
+          "nullable": true
+        },
+        "enableDeleteLock": {
+          "type": "bool",
+          "nullable": true
+        }
+      }
+    },
+    "VnetInput": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64
+        },
+        "location": {
+          "$ref": "#/definitions/Region"
+        },
+        "addressSpaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minLength": 1
+        },
+        "subnets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "nsgId": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "parameters": {
+    "env": {
+      "$ref": "#/definitions/Env",
+      "metadata": {
+        "description": "Environment identifier (dev, test, or prod)"
+      }
+    },
+    "project": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 24,
+      "metadata": {
+        "description": "Project name used for resource naming and tagging"
+      }
+    },
+    "tags": {
+      "$ref": "#/definitions/TagPolicy",
+      "metadata": {
+        "description": "Required tags policy for all resources"
+      }
+    },
+    "app": {
+      "$ref": "#/definitions/AppConfig",
+      "metadata": {
+        "description": "Application Service configuration"
+      }
+    },
+    "vnet": {
+      "$ref": "#/definitions/VnetInput",
+      "metadata": {
+        "description": "Virtual Network configuration"
+      }
+    }
+  },
+  "variables": {
+    "baseTags": {
+      "env": "[parameters('env')]",
+      "owner": "[parameters('tags').owner]",
+      "project": "[parameters('project')]"
+    },
+    "commonTags": "[if(not(equals(parameters('tags').costCenter, null())), union(variables('baseTags'), createObject('costCenter', parameters('tags').costCenter)), variables('baseTags'))]"
+  },
+  "resources": {
+    "net": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "net",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "input": {
+            "value": "[parameters('vnet')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.3.11034",
+              "templateHash": "15166592426975961864"
+            }
+          },
+          "definitions": {
+            "Region": {
+              "type": "string",
+              "allowedValues": [
+                "eastus",
+                "westeurope",
+                "westus"
+              ]
+            },
+            "VnetInput": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 64
+                },
+                "location": {
+                  "$ref": "#/definitions/Region"
+                },
+                "addressSpaces": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minLength": 1
+                },
+                "subnets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "prefix": {
+                        "type": "string"
+                      },
+                      "nsgId": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  },
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "parameters": {
+            "input": {
+              "$ref": "#/definitions/VnetInput",
+              "metadata": {
+                "description": "Virtual Network configuration including address spaces and subnets"
+              }
+            }
+          },
+          "resources": {
+            "vnet": {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('input').name]",
+              "location": "[parameters('input').location]",
+              "properties": {
+                "copy": [
+                  {
+                    "name": "subnets",
+                    "count": "[length(parameters('input').subnets)]",
+                    "input": {
+                      "name": "[parameters('input').subnets[copyIndex('subnets')].name]",
+                      "properties": {
+                        "addressPrefix": "[parameters('input').subnets[copyIndex('subnets')].prefix]",
+                        "networkSecurityGroup": "[if(equals(parameters('input').subnets[copyIndex('subnets')].nsgId, null()), null(), createObject('id', parameters('input').subnets[copyIndex('subnets')].nsgId))]"
+                      }
+                    }
+                  }
+                ],
+                "addressSpace": {
+                  "addressPrefixes": "[parameters('input').addressSpaces]"
+                }
+              }
+            }
+          },
+          "outputs": {
+            "subnetIds": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of subnet resource IDs"
+              },
+              "copy": {
+                "count": "[length(parameters('input').subnets)]",
+                "input": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('input').name, parameters('input').subnets[copyIndex()].name)]"
+              }
+            },
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Virtual Network"
+              },
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', parameters('input').name)]"
+            },
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Virtual Network"
+              },
+              "value": "[parameters('input').name]"
+            }
+          }
+        }
+      }
+    },
+    "web": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "web",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "app": {
+            "value": "[union(parameters('app'), createObject('tags', variables('commonTags')))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.3.11034",
+              "templateHash": "12806764626459822648"
+            }
+          },
+          "definitions": {
+            "Region": {
+              "type": "string",
+              "allowedValues": [
+                "eastus",
+                "westeurope",
+                "westus"
+              ]
+            },
+            "AppTier": {
+              "type": "string",
+              "allowedValues": [
+                "basic",
+                "premium",
+                "standard"
+              ]
+            },
+            "TagPolicy": {
+              "type": "object",
+              "properties": {
+                "env": {
+                  "type": "string",
+                  "allowedValues": [
+                    "dev",
+                    "prod",
+                    "test"
+                  ]
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                },
+                "costCenter": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            },
+            "Ingress": {
+              "type": "object",
+              "discriminator": {
+                "propertyName": "kind",
+                "mapping": {
+                  "publicIp": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "allowedValues": [
+                          "publicIp"
+                        ]
+                      },
+                      "sku": {
+                        "type": "string",
+                        "allowedValues": [
+                          "Basic",
+                          "Standard"
+                        ]
+                      },
+                      "dnsLabel": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  },
+                  "privateLink": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "allowedValues": [
+                          "privateLink"
+                        ]
+                      },
+                      "vnetId": {
+                        "type": "string"
+                      },
+                      "subnetName": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "appGateway": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "allowedValues": [
+                          "appGateway"
+                        ]
+                      },
+                      "appGatewayId": {
+                        "type": "string"
+                      },
+                      "listenerName": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Diagnostics": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "retentionDays": {
+                  "type": "int",
+                  "nullable": true,
+                  "minValue": 1,
+                  "maxValue": 365
+                }
+              }
+            },
+            "AutoScaleSettings": {
+              "type": "object",
+              "properties": {
+                "minCapacity": {
+                  "type": "int",
+                  "minValue": 1,
+                  "maxValue": 30
+                },
+                "maxCapacity": {
+                  "type": "int",
+                  "minValue": 1,
+                  "maxValue": 30
+                },
+                "defaultCapacity": {
+                  "type": "int",
+                  "minValue": 1,
+                  "maxValue": 30
+                },
+                "scaleOutCpuThreshold": {
+                  "type": "int",
+                  "nullable": true,
+                  "minValue": 1,
+                  "maxValue": 100
+                },
+                "scaleInCpuThreshold": {
+                  "type": "int",
+                  "nullable": true,
+                  "minValue": 1,
+                  "maxValue": 100
+                }
+              }
+            },
+            "AppConfig": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 60
+                },
+                "location": {
+                  "$ref": "#/definitions/Region"
+                },
+                "tier": {
+                  "$ref": "#/definitions/AppTier"
+                },
+                "capacity": {
+                  "type": "int",
+                  "nullable": true,
+                  "minValue": 1,
+                  "maxValue": 30
+                },
+                "tags": {
+                  "$ref": "#/definitions/TagPolicy"
+                },
+                "ingress": {
+                  "$ref": "#/definitions/Ingress"
+                },
+                "diagnostics": {
+                  "$ref": "#/definitions/Diagnostics",
+                  "nullable": true
+                },
+                "autoScale": {
+                  "$ref": "#/definitions/AutoScaleSettings",
+                  "nullable": true
+                },
+                "enableDeleteLock": {
+                  "type": "bool",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "parameters": {
+            "app": {
+              "$ref": "#/definitions/AppConfig",
+              "metadata": {
+                "description": "Application Service configuration including name, location, tier, and ingress settings"
+              }
+            }
+          },
+          "variables": {
+            "skuMap": {
+              "basic": {
+                "name": "B1",
+                "tier": "Basic"
+              },
+              "standard": {
+                "name": "S1",
+                "tier": "Standard"
+              },
+              "premium": {
+                "name": "P1v3",
+                "tier": "PremiumV3"
+              }
+            }
+          },
+          "resources": {
+            "plan": {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2023-12-01",
+              "name": "[format('{0}-plan', parameters('app').name)]",
+              "location": "[parameters('app').location]",
+              "sku": {
+                "name": "[variables('skuMap')[parameters('app').tier].name]",
+                "capacity": "[coalesce(parameters('app').capacity, 1)]",
+                "tier": "[variables('skuMap')[parameters('app').tier].tier]"
+              },
+              "tags": "[parameters('app').tags]"
+            },
+            "site": {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('app').name]",
+              "location": "[parameters('app').location]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('app').name))]",
+                "httpsOnly": true,
+                "clientAffinityEnabled": false,
+                "publicNetworkAccess": "[if(equals(parameters('app').ingress.kind, 'publicIp'), 'Enabled', 'Disabled')]",
+                "virtualNetworkSubnetId": "[if(equals(parameters('app').ingress.kind, 'privateLink'), format('{0}/subnets/{1}', parameters('app').ingress.vnetId, parameters('app').ingress.subnetName), null())]",
+                "siteConfig": {
+                  "minTlsVersion": "1.2",
+                  "ftpsState": "Disabled",
+                  "http20Enabled": true,
+                  "alwaysOn": "[not(equals(parameters('app').tier, 'basic'))]",
+                  "vnetRouteAllEnabled": "[equals(parameters('app').ingress.kind, 'privateLink')]",
+                  "appSettings": [
+                    {
+                      "name": "INGRESS_KIND",
+                      "value": "[parameters('app').ingress.kind]"
+                    },
+                    {
+                      "name": "PUBLIC_DNS",
+                      "value": "[if(equals(parameters('app').ingress.kind, 'publicIp'), coalesce(parameters('app').ingress.dnsLabel, 'web'), 'n/a')]"
+                    },
+                    {
+                      "name": "WEBSITE_VNET_ROUTE_ALL",
+                      "value": "[if(equals(parameters('app').ingress.kind, 'privateLink'), '1', '0')]"
+                    }
+                  ]
+                }
+              },
+              "tags": "[parameters('app').tags]",
+              "dependsOn": [
+                "plan"
+              ]
+            },
+            "privateEndpoint": {
+              "condition": "[equals(parameters('app').ingress.kind, 'privateLink')]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-pe', parameters('app').name)]",
+              "location": "[parameters('app').location]",
+              "properties": {
+                "subnet": {
+                  "id": "[if(equals(parameters('app').ingress.kind, 'privateLink'), format('{0}/subnets/{1}', parameters('app').ingress.vnetId, parameters('app').ingress.subnetName), '')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-plsc', parameters('app').name)]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Web/sites', parameters('app').name)]",
+                      "groupIds": [
+                        "sites"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "tags": "[parameters('app').tags]",
+              "dependsOn": [
+                "site"
+              ]
+            },
+            "autoScaleRule": {
+              "condition": "[not(equals(parameters('app').autoScale, null()))]",
+              "type": "Microsoft.Insights/autoscalesettings",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}-autoscale', parameters('app').name)]",
+              "location": "[parameters('app').location]",
+              "tags": "[parameters('app').tags]",
+              "properties": {
+                "enabled": true,
+                "targetResourceUri": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('app').name))]",
+                "profiles": [
+                  {
+                    "name": "Auto scale based on CPU percentage",
+                    "capacity": {
+                      "minimum": "[string(parameters('app').autoScale.minCapacity)]",
+                      "maximum": "[string(parameters('app').autoScale.maxCapacity)]",
+                      "default": "[string(parameters('app').autoScale.defaultCapacity)]"
+                    },
+                    "rules": [
+                      {
+                        "metricTrigger": {
+                          "metricName": "CpuPercentage",
+                          "metricResourceUri": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('app').name))]",
+                          "timeGrain": "PT1M",
+                          "statistic": "Average",
+                          "timeWindow": "PT5M",
+                          "timeAggregation": "Average",
+                          "operator": "GreaterThan",
+                          "threshold": "[coalesce(parameters('app').autoScale.scaleOutCpuThreshold, 70)]"
+                        },
+                        "scaleAction": {
+                          "direction": "Increase",
+                          "type": "ChangeCount",
+                          "value": "1",
+                          "cooldown": "PT5M"
+                        }
+                      },
+                      {
+                        "metricTrigger": {
+                          "metricName": "CpuPercentage",
+                          "metricResourceUri": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('app').name))]",
+                          "timeGrain": "PT1M",
+                          "statistic": "Average",
+                          "timeWindow": "PT10M",
+                          "timeAggregation": "Average",
+                          "operator": "LessThan",
+                          "threshold": "[coalesce(parameters('app').autoScale.scaleInCpuThreshold, 30)]"
+                        },
+                        "scaleAction": {
+                          "direction": "Decrease",
+                          "type": "ChangeCount",
+                          "value": "1",
+                          "cooldown": "PT10M"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "dependsOn": [
+                "plan"
+              ]
+            },
+            "planLock": {
+              "condition": "[coalesce(parameters('app').enableDeleteLock, false())]",
+              "type": "Microsoft.Authorization/locks",
+              "apiVersion": "2020-05-01",
+              "scope": "[format('Microsoft.Web/serverfarms/{0}', format('{0}-plan', parameters('app').name))]",
+              "name": "delete-lock",
+              "properties": {
+                "level": "CanNotDelete",
+                "notes": "Prevents accidental deletion of App Service Plan"
+              },
+              "dependsOn": [
+                "plan"
+              ]
+            },
+            "siteLock": {
+              "condition": "[coalesce(parameters('app').enableDeleteLock, false())]",
+              "type": "Microsoft.Authorization/locks",
+              "apiVersion": "2020-05-01",
+              "scope": "[format('Microsoft.Web/sites/{0}', parameters('app').name)]",
+              "name": "delete-lock",
+              "properties": {
+                "level": "CanNotDelete",
+                "notes": "Prevents accidental deletion of App Service"
+              },
+              "dependsOn": [
+                "site"
+              ]
+            },
+            "diag": {
+              "condition": "[not(equals(parameters('app').diagnostics, null()))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('diag-{0}', uniqueString(resourceId('Microsoft.Web/sites', parameters('app').name)))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "targetId": {
+                    "value": "[resourceId('Microsoft.Web/sites', parameters('app').name)]"
+                  },
+                  "diag": {
+                    "value": "[parameters('app').diagnostics]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "languageVersion": "2.0",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.38.3.11034",
+                      "templateHash": "2475435531620933287"
+                    }
+                  },
+                  "definitions": {
+                    "Diagnostics": {
+                      "type": "object",
+                      "properties": {
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "retentionDays": {
+                          "type": "int",
+                          "nullable": true,
+                          "minValue": 1,
+                          "maxValue": 365
+                        }
+                      }
+                    }
+                  },
+                  "parameters": {
+                    "targetId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource ID of the target resource to attach diagnostics to"
+                      }
+                    },
+                    "diag": {
+                      "$ref": "#/definitions/Diagnostics",
+                      "metadata": {
+                        "description": "Diagnostic settings configuration"
+                      }
+                    }
+                  },
+                  "resources": {
+                    "targetResource": {
+                      "existing": true,
+                      "type": "Microsoft.Web/sites",
+                      "apiVersion": "2023-12-01",
+                      "name": "[last(split(parameters('targetId'), '/'))]"
+                    },
+                    "diagSetting": {
+                      "condition": "[not(equals(parameters('diag').workspaceId, null()))]",
+                      "type": "Microsoft.Insights/diagnosticSettings",
+                      "apiVersion": "2021-05-01-preview",
+                      "scope": "[format('Microsoft.Web/sites/{0}', last(split(parameters('targetId'), '/')))]",
+                      "name": "diagnostics",
+                      "properties": {
+                        "workspaceId": "[parameters('diag').workspaceId]",
+                        "logs": [
+                          {
+                            "category": "AppServiceHTTPLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          },
+                          {
+                            "category": "AppServiceConsoleLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          },
+                          {
+                            "category": "AppServiceAppLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          },
+                          {
+                            "category": "AppServiceAuditLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          },
+                          {
+                            "category": "AppServiceIPSecAuditLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          },
+                          {
+                            "category": "AppServicePlatformLogs",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "category": "AllMetrics",
+                            "enabled": true,
+                            "retentionPolicy": {
+                              "enabled": "[not(equals(parameters('diag').retentionDays, null()))]",
+                              "days": "[coalesce(parameters('diag').retentionDays, 0)]"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outputs": {
+                    "created": {
+                      "type": "bool",
+                      "value": "[not(equals(parameters('diag').workspaceId, null()))]"
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "site"
+              ]
+            }
+          },
+          "outputs": {
+            "appId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the App Service"
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('app').name)]"
+            },
+            "planId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the App Service Plan"
+              },
+              "value": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('app').name))]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the system-assigned managed identity"
+              },
+              "value": "[reference('site', '2023-12-01', 'full').identity.principalId]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Default hostname of the App Service"
+              },
+              "value": "[reference('site').defaultHostName]"
+            },
+            "privateEndpointId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the private endpoint (if using privateLink ingress)"
+              },
+              "value": "[if(equals(parameters('app').ingress.kind, 'privateLink'), resourceId('Microsoft.Network/privateEndpoints', format('{0}-pe', parameters('app').name)), '')]"
+            },
+            "privateIpAddress": {
+              "type": "string",
+              "metadata": {
+                "description": "Private IP address of the private endpoint (if using privateLink ingress)"
+              },
+              "value": "[if(equals(parameters('app').ingress.kind, 'privateLink'), reference('privateEndpoint').customDnsConfigs[0].ipAddresses[0], '')]"
+            }
+          }
+        }
+      }
+    }
+  },
+  "outputs": {
+    "appId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the App Service"
+      },
+      "value": "[reference('web').outputs.appId.value]"
+    },
+    "planId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the App Service Plan"
+      },
+      "value": "[reference('web').outputs.planId.value]"
+    },
+    "appPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of the App Service managed identity"
+      },
+      "value": "[reference('web').outputs.principalId.value]"
+    },
+    "appHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "Default hostname of the App Service"
+      },
+      "value": "[reference('web').outputs.defaultHostname.value]"
+    },
+    "subnetIds": {
+      "type": "array",
+      "metadata": {
+        "description": "Array of subnet resource IDs"
+      },
+      "value": "[reference('net').outputs.subnetIds.value]"
+    },
+    "vnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Virtual Network"
+      },
+      "value": "[reference('net').outputs.vnetId.value]"
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Virtual Network"
+      },
+      "value": "[reference('net').outputs.vnetName.value]"
+    }
+  }
+}
