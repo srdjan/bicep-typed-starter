@@ -1,8 +1,114 @@
 # Examples
 
-This directory contains example Bicep templates demonstrating how to use the modules in this repository.
+This directory contains example Bicep templates demonstrating how to use the modules and latest Bicep features.
 
 ## Available Examples
+
+### [advanced-features.bicep](advanced-features.bicep) ⭐ NEW
+**Showcases all latest Bicep features (2024-2025)**
+
+Demonstrates:
+- ✅ Import/Export with `@export()` decorator
+- ✅ Spread operator (`...`) for object/array composition
+- ✅ Lambda functions (`filter`, `map`, `reduce`, `groupBy`, `sort`)
+- ✅ User-defined functions
+- ✅ Discriminated unions
+- ✅ Nullability operators (`.?`, `??`, `!`)
+
+**Usage:**
+```bash
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file examples/advanced-features.bicep \
+  --parameters environment=dev projectName=demo
+```
+
+**What you'll learn:**
+- How to filter and transform data with lambda functions
+- How to build reusable helper functions
+- How to use pre-built NSG rule sets
+- How to compose complex configurations safely
+
+---
+
+### [serverless-multitier.bicep](serverless-multitier.bicep) ⭐ NEW
+**Complete serverless architecture**
+
+Deploys a production-ready 3-tier serverless application:
+- 🌐 **Web Layer**: App Service with auto-scaling
+- ⚡ **API Layer**: Azure Functions (Node.js 20) with Premium plan
+- 💾 **Data Layer**: Storage Account with versioning
+- 📊 **Monitoring**: Application Insights with centralized logging
+- 🔒 **Security**: VNet integration, private endpoints, NSGs
+
+**Usage:**
+```bash
+# Create Log Analytics workspace first
+az monitor log-analytics workspace create \
+  --resource-group <rg-name> \
+  --workspace-name law-demo \
+  --location eastus
+
+# Get workspace ID
+WORKSPACE_ID=$(az monitor log-analytics workspace show \
+  --resource-group <rg-name> \
+  --workspace-name law-demo \
+  --query id -o tsv)
+
+# Deploy serverless architecture
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file examples/serverless-multitier.bicep \
+  --parameters environment=prod \
+               projectName=myapp \
+               logAnalyticsWorkspaceId="$WORKSPACE_ID"
+```
+
+**Features:**
+- Production-ready configuration
+- High availability with auto-scaling
+- Comprehensive monitoring and diagnostics
+- Network isolation with VNet integration
+- Managed identities for secure access
+- Environment-aware defaults
+
+---
+
+### [deployment-stack.bicep](deployment-stack.bicep) ⭐ NEW
+**Azure Deployment Stacks demonstration**
+
+Shows lifecycle management with deployment stacks (GA feature):
+- Unified resource management
+- Delete protection (`denyDelete`, `denyWriteAndDelete`)
+- Automatic cleanup of removed resources
+- Atomic updates
+
+**Usage:**
+```bash
+# Create deployment stack
+az stack group create \
+  --name myapp-stack \
+  --resource-group <rg-name> \
+  --template-file examples/deployment-stack.bicep \
+  --parameters environment=prod projectName=myapp \
+  --deny-settings-mode denyDelete \
+  --delete-resources \
+  --yes
+
+# View stack
+az stack group show \
+  --name myapp-stack \
+  --resource-group <rg-name>
+
+# Delete stack (removes all resources)
+az stack group delete \
+  --name myapp-stack \
+  --resource-group <rg-name> \
+  --delete-all \
+  --yes
+```
+
+---
 
 ### [nsg-example.bicep](nsg-example.bicep)
 Demonstrates how to create a Network Security Group with common web application rules:
@@ -17,6 +123,8 @@ az deployment group create \
   --template-file examples/nsg-example.bicep \
   --parameters location=eastus environment=dev
 ```
+
+---
 
 ### [complete-deployment.bicep](complete-deployment.bicep)
 Full-featured deployment showing all capabilities:

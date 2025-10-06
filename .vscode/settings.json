@@ -1,0 +1,58 @@
+{
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // Bicep-specific settings
+  "bicep.trace.server": "off",
+  "bicep.validate": true,
+
+  // File associations
+  "files.associations": {
+    "*.bicep": "bicep",
+    "*.bicepparam": "bicep-params"
+  },
+
+  // Exclude from file explorer
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/*.json": false,
+    "**/main.json": true
+  },
+
+  // Search excludes
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/main.json": true
+  },
+
+  // Code formatting
+  "[bicep]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-bicep",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+
+  "[bicep-params]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-bicep",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+
+  // IntelliSense and suggestions
+  "editor.suggest.snippetsPreventQuickSuggestions": false,
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  },
+
+  // Terminal
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.osx": "zsh",
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

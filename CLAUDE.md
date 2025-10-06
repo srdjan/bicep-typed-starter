@@ -8,9 +8,9 @@ This is a **typed Bicep starter template** demonstrating Azure Infrastructure as
 
 ## Prerequisites
 
-- Azure CLI with Bicep CLI installed
+- Azure CLI (2.50.0+) with Bicep CLI (0.30.0+) installed
 - `bicepconfig.json` enables experimental `userDefinedTypes` feature
-- PSRule for Azure (for policy validation)
+- PSRule for Azure (optional, for policy validation)
 
 ## Common Commands
 
@@ -19,11 +19,17 @@ This is a **typed Bicep starter template** demonstrating Azure Infrastructure as
 # Build/compile Bicep to ARM JSON
 az bicep build --file main.bicep
 
-# Deploy using parameter file
+# Deploy using parameter file (development)
 az deployment group create \
   --resource-group <rg-name> \
   --template-file main.bicep \
   --parameters env/dev.bicepparam
+
+# Deploy production with auto-scaling and locks
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file main.bicep \
+  --parameters env/prod.bicepparam
 
 # Validate deployment
 az deployment group validate \
@@ -39,6 +45,12 @@ az deployment group what-if \
 
 # Lint and analyze
 az bicep lint --file main.bicep
+
+# Test individual module
+az deployment group create \
+  --resource-group test-rg \
+  --template-file modules/network/vnet.bicep \
+  --parameters input=@test-params.json
 ```
 
 ### Graph Extension Deployments (Tenant Scope)
@@ -154,9 +166,10 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 
 ### Common Type Errors
 - **Missing discriminator**: Ensure union variants have unique `kind` values
-- **Type redeclaration mismatch**: Types must match exactly between main and modules (including decorators)
+- **Type redeclaration mismatch**: Types must match exactly between main and modules (including decorators). Bicep doesn't support type imports, so types are re-declared in each module
 - **Null handling**: Use `!` non-null assertion operator when Bicep can't infer (`diag!.workspaceId`)
 - **Capacity limits**: App Service capacity is capped at 30 instances via `@maxValue(30)`
+- **Union type constraints**: Union members must share a single underlying primitive (all strings or all ints). Mixed unions like `'a' | 1` are invalid
 
 ## Advanced Features
 
@@ -193,6 +206,16 @@ Enable delete locks for production resources:
 enableDeleteLock: true  // Applies CanNotDelete lock to App Service and Plan
 ```
 
+## Type System Philosophy
+
+This project follows the principles outlined in [docs/BICEP_BEST_PRACTICES.md](docs/BICEP_BEST_PRACTICES.md):
+
+1. **Treat types as your domain model** - Use UDTs for reuse and clarity
+2. **Encode constraints in types, not prose** - Literal unions instead of @allowed comments
+3. **Use nullability operators** - `.?`, `??`, `!` for safe optional handling
+4. **Tagged unions for option sets** - Discriminated unions with `kind` field
+5. **Type-first validation** - Push errors to compile time, not runtime
+
 ## Key Files
 
 - [main.bicep](main.bicep) - Root template with type definitions and module orchestration
@@ -207,3 +230,4 @@ enableDeleteLock: true  // Applies CanNotDelete lock to App Service and Plan
 - [extensions/graph/entra-group.bicep](extensions/graph/entra-group.bicep) - Microsoft Graph extension for Entra ID groups
 - [examples/nsg-example.bicep](examples/nsg-example.bicep) - Example NSG configuration with web app rules
 - [examples/complete-deployment.bicep](examples/complete-deployment.bicep) - Full-featured deployment with NSG, VNet, App Service, auto-scaling, and locks
+- [docs/BICEP_BEST_PRACTICES.md](docs/BICEP_BEST_PRACTICES.md) - Comprehensive guide on maximizing Bicep's type system

@@ -1,79 +1,22 @@
-type Env = 'dev' | 'test' | 'prod'
-type Region = 'eastus' | 'westeurope' | 'westus'
-type AppTier = 'basic' | 'standard' | 'premium'
+// ============================================================================
+// IMPORTS - Using @export/@import for shared types and functions
+// ============================================================================
 
-type TagPolicy = {
-  env: 'dev' | 'test' | 'prod'
-  @minLength(3)
-  @maxLength(100)
-  owner: string
-  @minLength(3)
-  @maxLength(50)
-  costCenter: string?
-}
+// Import shared types from central type library
+import {
+  Env
+  Region
+  AppTier
+  TagPolicy
+  Ingress
+  Diagnostics
+  AutoScaleSettings
+  AppConfig
+  VnetInput
+} from './types/common.bicep'
 
-@discriminator('kind')
-type Ingress =
-  | { kind: 'publicIp', sku: 'Basic' | 'Standard', dnsLabel: string? }
-  | { kind: 'privateLink', vnetId: string, subnetName: string }
-  | { kind: 'appGateway', appGatewayId: string, listenerName: string }
-
-type Diagnostics = {
-  workspaceId: string?
-  @minValue(1)
-  @maxValue(365)
-  retentionDays: int?
-}
-
-type AutoScaleSettings = {
-  @minValue(1)
-  @maxValue(30)
-  minCapacity: int
-  @minValue(1)
-  @maxValue(30)
-  maxCapacity: int
-  @minValue(1)
-  @maxValue(30)
-  defaultCapacity: int
-  @minValue(1)
-  @maxValue(100)
-  scaleOutCpuThreshold: int?
-  @minValue(1)
-  @maxValue(100)
-  scaleInCpuThreshold: int?
-}
-
-type AppConfig = {
-  @minLength(3)
-  @maxLength(60)
-  name: string
-  location: Region
-  tier: AppTier
-  @minValue(1)
-  @maxValue(30)
-  capacity: int?
-  ingress: Ingress
-  diagnostics: Diagnostics?
-  autoScale: AutoScaleSettings?
-  enableDeleteLock: bool?
-}
-
-type VnetInput = {
-  @minLength(3)
-  @maxLength(64)
-  name: string
-  location: Region
-  @minLength(1)
-  addressSpaces: string[]
-  @minLength(1)
-  subnets: {
-    @minLength(1)
-    @maxLength(80)
-    name: string
-    prefix: string
-    nsgId: string?
-  }[]
-}
+// Import helper functions for tag management
+import {mergeTags} from './lib/helpers.bicep'
 
 @description('Environment identifier (dev, test, or prod)')
 param env Env
@@ -91,6 +34,10 @@ param app AppConfig
 
 @description('Virtual Network configuration')
 param vnet VnetInput
+// ============================================================================
+// TAG COMPOSITION - Using spread operator for cleaner merging
+// ============================================================================
+
 // Build base tags from required parameters
 var baseTags = {
   env: env
@@ -98,11 +45,32 @@ var baseTags = {
   project: project
 }
 
-// Merge optional costCenter tag if provided
-var commonTags = tags.costCenter != null ? union(baseTags, { costCenter: tags.costCenter! }) : baseTags
+// Use spread operator to merge optional costCenter tag (replaces union())
+var commonTags = {
+  ...baseTags
+  ...((tags.costCenter != null) ? {costCenter: tags.costCenter} : {})
+}
+
+// ============================================================================
+// MODULE DEPLOYMENTS
+// ============================================================================
 
 module net './modules/network/vnet.bicep' = { name: 'net', params: { input: vnet } }
-module web './modules/app/appservice.bicep' = { name: 'web', params: { app: union(app, { tags: commonTags }) } }
+
+// Use spread operator to merge app config with common tags
+module web './modules/app/appservice.bicep' = {
+  name: 'web'
+  params: {
+    app: {
+      ...app
+      tags: commonTags
+    }
+  }
+}
+// ============================================================================
+// OUTPUTS
+// ============================================================================
+
 @description('Resource ID of the App Service')
 output appId string = web.outputs.appId
 
