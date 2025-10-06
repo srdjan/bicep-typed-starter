@@ -1,11 +1,10 @@
 # Improvements Summary
 
-This document summarizes all improvements made to bicep-typed-starter to enhance user-friendliness and showcase cutting-edge Bicep features (2024-2025).
+This document summarizes all improvements made to bicep-typed-starter to enhance user-friendliness and showcase cutting-edge Bicep features.
 
 ## Executive Summary
 
 The bicep-typed-starter repository has been significantly enhanced with:
-- ✅ **13 new files** demonstrating latest Bicep features
 - ✅ **Import/Export system** for code reuse
 - ✅ **Spread operator** for cleaner syntax
 - ✅ **Lambda functions** for functional programming

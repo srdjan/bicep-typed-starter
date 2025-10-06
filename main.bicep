@@ -34,12 +34,25 @@ param app AppConfig
 
 @description('Virtual Network configuration')
 param vnet VnetInput
+
 // ============================================================================
 // TAG COMPOSITION - Using spread operator for cleaner merging
 // ============================================================================
 
-// Build complete tag set via shared helper
-var commonTags = buildTags(env, tags.owner, project, tags.costCenter, null)
+// Build base tags via shared helper
+var baseTags = buildTags(env, tags.owner, project, tags.costCenter ?? null, null)
+
+// Define app-specific tags
+var appSpecificTags = {
+  workload: 'web-app'
+  tier: app.tier
+}
+
+// Use spread operator to merge base tags with app-specific tags
+var appTags = {
+  ...baseTags
+  ...appSpecificTags
+}
 
 // ============================================================================
 // MODULE DEPLOYMENTS
@@ -47,12 +60,11 @@ var commonTags = buildTags(env, tags.owner, project, tags.costCenter, null)
 
 module net './modules/network/vnet.bicep' = { name: 'net', params: { input: vnet } }
 
-// Use spread operator to merge app config with common tags
 module web './modules/app/appservice.bicep' = {
   name: 'web'
   params: {
     config: app
-    tags: commonTags
+    tags: appTags
   }
 }
 // ============================================================================
