@@ -1,9 +1,4 @@
-type Diagnostics = {
-  workspaceId: string?
-  @minValue(1)
-  @maxValue(365)
-  retentionDays: int?
-}
+import {Diagnostics} from '../../types/common.bicep'
 
 @description('Resource ID of the target resource to attach diagnostics to')
 param targetId string

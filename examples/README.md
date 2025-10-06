@@ -146,6 +146,28 @@ az deployment group create \
   --parameters location=eastus environment=prod projectName=myapp
 ```
 
+### [app-hosting-stack.bicep](app-hosting-stack.bicep) ⭐ NEW
+Full stack aligned with the modern Azure Web Apps reference architecture:
+- Azure Front Door Standard/Premium routing global traffic
+- Application Gateway WAF v2 terminating TLS and forwarding to API Management
+- API Management (Developer/Premium tiers) fronting a Function App backend
+- Event Hubs namespace for async messaging
+- PostgreSQL Flexible Server with delegated subnet for data persistence
+
+**Usage:**
+```bash
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file examples/app-hosting-stack.bicep \
+  --parameters \
+      projectName=myapp \
+      tags="{ env: 'dev', owner: 'platform-team', costCenter: 'ENG-001' }" \
+      functionStorageAccountName=<existing-storage-account> \
+      postgresAdminPassword=<S3cureP@ssw0rd>
+```
+
+> Requires an existing storage account for the Function App content share. All other services are provisioned and connected automatically.
+
 ## Parameter Files
 
 See the [env/](../env/) directory for complete parameter file examples:

@@ -340,3 +340,11 @@ The Bicep Typed Starter is now a **production-ready**, **type-safe**, **secure**
 - ✅ Extensible architecture
 
 Grade: **A (95/100)**
+---
+
+## New Modules & Examples ✅
+
+- **Front Door, Application Gateway, API Management, Postgres Flexible Server, and Event Hubs modules** now live under `modules/edge`, `modules/network`, `modules/api`, `modules/data`, and `modules/messaging`, each powered by exported types and discriminated unions for safe contracts.
+- **Function App module** validated storage access with cached `listKeys` and compile-time runtime guards via `assert` + lookup maps.
+- **App hosting reference template** (`examples/app-hosting-stack.bicep`) demonstrates the full stack (FrontDoor → App Gateway → APIM → Function App → Postgres → EventHub) with environment-aware defaults.
+- **Docs refresh** documents the stack blueprint and updates the examples catalog so teams can discover the new scenario quickly.

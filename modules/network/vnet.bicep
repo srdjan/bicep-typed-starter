@@ -1,21 +1,4 @@
-type Region = 'eastus' | 'westeurope' | 'westus'
-
-type VnetInput = {
-  @minLength(3)
-  @maxLength(64)
-  name: string
-  location: Region
-  @minLength(1)
-  addressSpaces: string[]
-  @minLength(1)
-  subnets: {
-    @minLength(1)
-    @maxLength(80)
-    name: string
-    prefix: string
-    nsgId: string?
-  }[]
-}
+import {VnetInput} from '../../types/common.bicep'
 
 @description('Virtual Network configuration including address spaces and subnets')
 param input VnetInput
@@ -37,6 +20,16 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
             : {
                 id: s.nsgId!
               }
+          delegations: s.delegations == null
+            ? []
+            : [
+                for delegation in s.delegations!: {
+                  name: '${s.name}-${last(split(delegation, '/'))}'
+                  properties: {
+                    serviceName: delegation
+                  }
+                }
+              ]
         }
       }
     ]

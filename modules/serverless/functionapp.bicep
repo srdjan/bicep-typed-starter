@@ -58,6 +58,24 @@ param func FunctionAppConfig
 // RESOURCES
 // ============================================================================
 
+// Cache storage account keys once for reuse across app settings
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: func.storageAccountName
+}
+
+var storageKeys = listKeys(storageAccount.id, '2023-01-01')
+
+// Map of supported runtime versions per stack with assertion for compile-time validation
+var runtimeVersions = {
+  dotnet: ['6', '8']
+  node: ['16', '18', '20']
+  python: ['3.9', '3.10', '3.11']
+  java: ['11', '17']
+  powershell: ['7.2', '7.4']
+}
+
+assert runtimeVersionSupported = contains(runtimeVersions[func.runtime], func.runtimeVersion)
+
 // App Service Plan for Functions
 resource hostingPlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: '${func.name}-plan'
@@ -111,11 +129,11 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${func.storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(resourceId('Microsoft.Storage/storageAccounts', func.storageAccountName), '2023-01-01').keys[0].value}'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${func.storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKeys.keys[0].value}'
         }
         {
           name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${func.storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(resourceId('Microsoft.Storage/storageAccounts', func.storageAccountName), '2023-01-01').keys[0].value}'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${func.storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKeys.keys[0].value}'
         }
         {
           name: 'WEBSITE_CONTENTSHARE'

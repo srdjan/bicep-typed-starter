@@ -77,6 +77,7 @@ type AppConfig = {
   diagnostics: Diagnostics?
   autoScale: AutoScaleSettings?
   enableDeleteLock: bool?
+  tags: TagPolicy?
 }
 
 @export()
@@ -95,6 +96,7 @@ type VnetInput = {
     name: string
     prefix: string
     nsgId: string?
+    delegations: string[]?
   }[]
 }
 
@@ -126,4 +128,260 @@ type NsgInput = {
   location: string
   rules: NsgRule[]
   tags: object?
+}
+
+// ============================================================================
+// EDGE & INGRESS SERVICES
+// ============================================================================
+
+@export()
+@description('Azure Front Door SKU options')
+type FrontDoorSku = 'Standard_AzureFrontDoor' | 'Premium_AzureFrontDoor'
+
+@export()
+@description('Supported HTTP protocol values')
+type HttpProtocol = 'Http' | 'Https'
+
+@export()
+@description('Origin definition for Azure Front Door')
+type FrontDoorOrigin = {
+  @minLength(1)
+  @maxLength(50)
+  name: string
+  hostName: string
+  httpPort: int?
+  httpsPort: int?
+  weight: int?
+  priority: int?
+}
+
+@export()
+@description('Origin group definition for Azure Front Door')
+type FrontDoorOriginGroup = {
+  @minLength(1)
+  @maxLength(50)
+  name: string
+  loadBalancingSampleSize: int?
+  healthProbePath: string?
+  probeRequestType: 'GET' | 'HEAD'?
+  origins: FrontDoorOrigin[]
+}
+
+@export()
+@description('Route configuration for Azure Front Door Standard/Premium')
+type FrontDoorRoute = {
+  @minLength(1)
+  @maxLength(50)
+  name: string
+  originGroupName: string
+  patternsToMatch: string[]
+  supportedProtocols: HttpProtocol[]
+  httpsRedirect: bool?
+  forwardingProtocol: 'HttpOnly' | 'HttpsOnly' | 'MatchRequest'
+  wafPolicyId: string?
+}
+
+@export()
+@description('Azure Front Door configuration block')
+type FrontDoorConfig = {
+  @minLength(3)
+  @maxLength(60)
+  name: string
+  sku: FrontDoorSku
+  endpointName: string
+  tags: object?
+  originGroups: FrontDoorOriginGroup[]
+  routes: FrontDoorRoute[]
+}
+
+// ============================================================================
+// APPLICATION GATEWAY
+// ============================================================================
+
+@export()
+@description('Application Gateway SKU tiers')
+type AppGatewaySku = 'Standard_v2' | 'WAF_v2'
+
+@export()
+@description('Backend target definition for Application Gateway')
+@discriminator('kind')
+type AppGatewayBackendTarget =
+  | { kind: 'ip', ipAddress: string }
+  | { kind: 'fqdn', fqdn: string }
+
+@export()
+@description('HTTP settings configuration for Application Gateway')
+type AppGatewayHttpSetting = {
+  name: string
+  protocol: HttpProtocol
+  port: int
+  cookieBasedAffinity: 'Enabled' | 'Disabled'
+  pickHostNameFromBackendAddress: bool?
+}
+
+@export()
+@description('Listener configuration for Application Gateway')
+type AppGatewayListener = {
+  name: string
+  protocol: HttpProtocol
+  hostName: string?
+  port: int
+  frontendIpConfigurationName: string
+  certificateId: string?
+}
+
+@export()
+@description('Routing rule configuration for Application Gateway')
+type AppGatewayRoutingRule = {
+  name: string
+  listenerName: string
+  backendPoolName: string
+  httpSettingName: string
+  priority: int
+}
+
+@export()
+@description('Application Gateway configuration')
+type AppGatewayConfig = {
+  name: string
+  location: Region
+  sku: AppGatewaySku
+  capacity: int?
+  vnetId: string
+  subnetName: string
+  frontendIpConfiguration: {
+    name: string
+    publicIpResourceId: string?
+  }
+  probes: {
+    name: string
+    host: string?
+    path: string
+    protocol: HttpProtocol
+    intervalInSeconds: int?
+    timeoutInSeconds: int?
+  }[]?
+  backendPools: {
+    name: string
+    targets: AppGatewayBackendTarget[]
+  }[]
+  httpSettings: AppGatewayHttpSetting[]
+  listeners: AppGatewayListener[]
+  routingRules: AppGatewayRoutingRule[]
+  firewallMode: 'Detection' | 'Prevention'?
+  tags: object?
+}
+
+// ============================================================================
+// API MANAGEMENT
+// ============================================================================
+
+@export()
+@description('API Management SKU definition')
+type ApiManagementSku = {
+  name: 'Developer' | 'Basic' | 'Standard' | 'Premium'
+  capacity: int
+}
+
+@export()
+@description('API Management configuration block')
+type ApiManagementConfig = {
+  name: string
+  location: Region
+  publisherEmail: string
+  publisherName: string
+  sku: ApiManagementSku
+  virtualNetworkType: 'None' | 'External' | 'Internal'
+  subnetResourceId: string?
+  enableClientCertificate: bool?
+  tags: object?
+}
+
+// ============================================================================
+// DATA LAYER - POSTGRES FLEXIBLE SERVER
+// ============================================================================
+
+@export()
+@description('PostgreSQL flexible server compute tiers')
+type PostgresTier = 'Burstable' | 'GeneralPurpose' | 'MemoryOptimized'
+
+@export()
+@description('PostgreSQL flexible server SKU')
+type PostgresSku = {
+  tier: PostgresTier
+  name: 'Standard_B1ms' | 'Standard_B2ms' | 'Standard_D2ads_v5' | 'Standard_E4ads_v5'
+  capacity: int
+}
+
+@export()
+@description('High availability configuration for Postgres flexible server')
+type PostgresHighAvailability = {
+  mode: 'SameZone' | 'ZoneRedundant'
+  standbyAvailabilityZone: string?
+}
+
+@export()
+@description('Backup configuration for Postgres flexible server')
+type PostgresBackup = {
+  retentionDays: int
+  geoRedundantBackup: 'Disabled' | 'Enabled'
+}
+
+@export()
+@description('Database definition to be created on the Postgres server')
+type PostgresDatabase = {
+  name: string
+  charset: string?
+  collation: string?
+}
+
+@export()
+@description('Postgres flexible server configuration')
+type PostgresConfig = {
+  name: string
+  location: Region
+  administratorLogin: string
+  version: '15' | '16'
+  sku: PostgresSku
+  storageSizeGb: int
+  storageAutoGrow: 'Enabled' | 'Disabled'
+  backup: PostgresBackup
+  highAvailability: PostgresHighAvailability?
+  network: {
+    delegatedSubnetId: string
+    privateDnsZoneId: string?
+  }?
+  databases: PostgresDatabase[]
+  tags: object?
+}
+
+// ============================================================================
+// MESSAGING - EVENT HUB
+// ============================================================================
+
+@export()
+@description('Event Hubs SKU tiers')
+type EventHubSku = 'Basic' | 'Standard' | 'Premium'
+
+@export()
+@description('Event Hub definition including consumer groups')
+type EventHubEntity = {
+  name: string
+  partitionCount: int
+  messageRetentionInDays: int
+  status: 'Active' | 'Disabled'
+  consumerGroups: string[]
+}
+
+@export()
+@description('Event Hub namespace configuration')
+type EventHubNamespaceConfig = {
+  name: string
+  location: Region
+  sku: EventHubSku
+  capacity: int?
+  autoInflateEnabled: bool?
+  maximumThroughputUnits: int?
+  tags: object?
+  hubs: EventHubEntity[]
 }

@@ -410,3 +410,19 @@ If you want, I can turn this into a **starter repo** with `types.bicep`, a few �
 [10]: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/file?utm_source=chatgpt.com "Bicep file structure and syntax - Azure Resource Manager"
 [11]: https://johnlokerse.dev/2024/06/10/azure-bicep-nullability-operators-explained/?utm_source=chatgpt.com "Azure Bicep nullability operators explained"
 [12]: https://azuretechinsider.com/advanced-tips-for-better-bicep-deployments/?utm_source=chatgpt.com "10 Advanced Tips for Better Bicep Deployments"
+---
+
+# 15) Typed app-hosting stack blueprint
+
+Bringing the patterns together, the new `examples/app-hosting-stack.bicep` template composes the freshly added modules to demonstrate a modern application delivery chain without touching Kubernetes:
+
+* **Edge** – `modules/edge/frontdoor.bicep` routes globally to your regional entry point with typed origin/route definitions and WAF policy linkage.
+* **Regional ingress** – `modules/network/appgateway.bicep` terminates traffic on Application Gateway WAF v2 with strongly typed listeners, backends, and rule priorities.
+* **API facade** – `modules/api/apim.bicep` provisions API Management with system-assigned identity so you can wire policies straight away.
+* **Compute** – `modules/serverless/functionapp.bicep` powers the business logic with premium plan autoscale and VNet integration.
+* **Data** – `modules/data/postgres-flexible.bicep` manages PostgreSQL Flexible Server (HA, backups, delegated subnet) via discriminated unions.
+* **Messaging** – `modules/messaging/eventhub.bicep` gifts you an Event Hubs namespace with declarative hubs + consumer groups in loops.
+
+> 🔗 Use `az deployment group create --template-file examples/app-hosting-stack.bicep ...` to explore the entire flow end-to-end.
+
+The example leans heavily on the repo's shared types and exported helper functions, so every module boundary still benefits from IntelliSense, discriminated unions, and compile-time validation.

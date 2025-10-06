@@ -1,62 +1,10 @@
-type Region = 'eastus' | 'westeurope' | 'westus'
-type AppTier = 'basic' | 'standard' | 'premium'
-
-type TagPolicy = {
-  env: 'dev' | 'test' | 'prod'
-  owner: string
-  project: string
-  costCenter: string?
-}
-
-@discriminator('kind')
-type Ingress =
-  | { kind: 'publicIp', sku: 'Basic' | 'Standard', dnsLabel: string? }
-  | { kind: 'privateLink', vnetId: string, subnetName: string }
-  | { kind: 'appGateway', appGatewayId: string, listenerName: string }
-
-type Diagnostics = {
-  workspaceId: string?
-  @minValue(1)
-  @maxValue(365)
-  retentionDays: int?
-}
-
-type AutoScaleSettings = {
-  @minValue(1)
-  @maxValue(30)
-  minCapacity: int
-  @minValue(1)
-  @maxValue(30)
-  maxCapacity: int
-  @minValue(1)
-  @maxValue(30)
-  defaultCapacity: int
-  @minValue(1)
-  @maxValue(100)
-  scaleOutCpuThreshold: int?
-  @minValue(1)
-  @maxValue(100)
-  scaleInCpuThreshold: int?
-}
-
-type AppConfig = {
-  @minLength(3)
-  @maxLength(60)
-  name: string
-  location: Region
-  tier: AppTier
-  @minValue(1)
-  @maxValue(30)
-  capacity: int?
-  tags: TagPolicy
-  ingress: Ingress
-  diagnostics: Diagnostics?
-  autoScale: AutoScaleSettings?
-  enableDeleteLock: bool?
-}
+import {TagPolicy, AppConfig} from '../../types/common.bicep'
 
 @description('Application Service configuration including name, location, tier, and ingress settings')
-param app AppConfig
+param config AppConfig
+
+@description('Required tags applied to App Service resources')
+param tags TagPolicy
 
 // Map abstract tier names to actual Azure SKU names and tiers
 var skuMap = {
@@ -75,19 +23,19 @@ var skuMap = {
 }
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
-  name: '${app.name}-plan'
-  location: app.location
+  name: '${config.name}-plan'
+  location: config.location
   sku: {
-    name: skuMap[app.tier].name
-    capacity: app.capacity ?? 1
-    tier: skuMap[app.tier].tier
+    name: skuMap[config.tier].name
+    capacity: config.capacity ?? 1
+    tier: skuMap[config.tier].tier
   }
-  tags: app.tags
+  tags: tags
 }
 
 resource site 'Microsoft.Web/sites@2023-12-01' = {
-  name: app.name
-  location: app.location
+  name: config.name
+  location: config.location
   identity: {
     type: 'SystemAssigned'
   }
@@ -96,46 +44,46 @@ resource site 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     clientAffinityEnabled: false
     // Public network access controlled by ingress type
-    publicNetworkAccess: app.ingress.kind == 'publicIp' ? 'Enabled' : 'Disabled'
+    publicNetworkAccess: config.ingress.kind == 'publicIp' ? 'Enabled' : 'Disabled'
     // VNet integration for private link
-    virtualNetworkSubnetId: app.ingress.kind == 'privateLink' ? '${app.ingress.vnetId}/subnets/${app.ingress.subnetName}' : null
+    virtualNetworkSubnetId: config.ingress.kind == 'privateLink' ? '${config.ingress.vnetId}/subnets/${config.ingress.subnetName}' : null
     siteConfig: {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       http20Enabled: true
-      alwaysOn: app.tier != 'basic'
+      alwaysOn: config.tier != 'basic'
       // VNet route all traffic when using private link
-      vnetRouteAllEnabled: app.ingress.kind == 'privateLink'
+      vnetRouteAllEnabled: config.ingress.kind == 'privateLink'
       appSettings: [
         {
           name: 'INGRESS_KIND'
-          value: app.ingress.kind
+          value: config.ingress.kind
         }
         {
           name: 'PUBLIC_DNS'
-          value: app.ingress.kind == 'publicIp' ? (app.ingress.dnsLabel ?? 'web') : 'n/a'
+          value: config.ingress.kind == 'publicIp' ? (config.ingress.dnsLabel ?? 'web') : 'n/a'
         }
         {
           name: 'WEBSITE_VNET_ROUTE_ALL'
-          value: app.ingress.kind == 'privateLink' ? '1' : '0'
+          value: config.ingress.kind == 'privateLink' ? '1' : '0'
         }
       ]
     }
   }
-  tags: app.tags
+  tags: tags
 }
 
 // Private endpoint for private link ingress
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-04-01' = if (app.ingress.kind == 'privateLink') {
-  name: '${app.name}-pe'
-  location: app.location
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-04-01' = if (config.ingress.kind == 'privateLink') {
+  name: '${config.name}-pe'
+  location: config.location
   properties: {
     subnet: {
-      id: app.ingress.kind == 'privateLink' ? '${app.ingress.vnetId}/subnets/${app.ingress.subnetName}' : ''
+      id: config.ingress.kind == 'privateLink' ? '${config.ingress.vnetId}/subnets/${config.ingress.subnetName}' : ''
     }
     privateLinkServiceConnections: [
       {
-        name: '${app.name}-plsc'
+        name: '${config.name}-plsc'
         properties: {
           privateLinkServiceId: site.id
           groupIds: [
@@ -145,14 +93,14 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-04-01' = if (a
       }
     ]
   }
-  tags: app.tags
+  tags: tags
 }
 
 // Auto-scaling rules for App Service Plan
-resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (app.autoScale != null) {
-  name: '${app.name}-autoscale'
-  location: app.location
-  tags: app.tags
+resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (config.autoScale != null) {
+  name: '${config.name}-autoscale'
+  location: config.location
+  tags: tags
   properties: {
     enabled: true
     targetResourceUri: plan.id
@@ -160,9 +108,9 @@ resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (a
       {
         name: 'Auto scale based on CPU percentage'
         capacity: {
-          minimum: string(app.autoScale!.minCapacity)
-          maximum: string(app.autoScale!.maxCapacity)
-          default: string(app.autoScale!.defaultCapacity)
+          minimum: string(config.autoScale!.minCapacity)
+          maximum: string(config.autoScale!.maxCapacity)
+          default: string(config.autoScale!.defaultCapacity)
         }
         rules: [
           // Scale out rule
@@ -175,7 +123,7 @@ resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (a
               timeWindow: 'PT5M'
               timeAggregation: 'Average'
               operator: 'GreaterThan'
-              threshold: app.autoScale!.scaleOutCpuThreshold ?? 70
+              threshold: config.autoScale!.scaleOutCpuThreshold ?? 70
             }
             scaleAction: {
               direction: 'Increase'
@@ -194,7 +142,7 @@ resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (a
               timeWindow: 'PT10M'
               timeAggregation: 'Average'
               operator: 'LessThan'
-              threshold: app.autoScale!.scaleInCpuThreshold ?? 30
+              threshold: config.autoScale!.scaleInCpuThreshold ?? 30
             }
             scaleAction: {
               direction: 'Decrease'
@@ -209,16 +157,16 @@ resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (a
   }
 }
 
-module diag '../monitor/diagnostics.bicep' = if (app.diagnostics != null) {
+module diag '../monitor/diagnostics.bicep' = if (config.diagnostics != null) {
   name: 'diag-${uniqueString(site.id)}'
   params: {
     targetId: site.id
-    diag: app.diagnostics!
+    diag: config.diagnostics!
   }
 }
 
 // Resource locks to prevent accidental deletion
-resource planLock 'Microsoft.Authorization/locks@2020-05-01' = if (app.enableDeleteLock ?? false) {
+resource planLock 'Microsoft.Authorization/locks@2020-05-01' = if (config.enableDeleteLock ?? false) {
   scope: plan
   name: 'delete-lock'
   properties: {
@@ -227,7 +175,7 @@ resource planLock 'Microsoft.Authorization/locks@2020-05-01' = if (app.enableDel
   }
 }
 
-resource siteLock 'Microsoft.Authorization/locks@2020-05-01' = if (app.enableDeleteLock ?? false) {
+resource siteLock 'Microsoft.Authorization/locks@2020-05-01' = if (config.enableDeleteLock ?? false) {
   scope: site
   name: 'delete-lock'
   properties: {
@@ -249,7 +197,7 @@ output principalId string = site.identity.principalId
 output defaultHostname string = site.properties.defaultHostName
 
 @description('Resource ID of the private endpoint (if using privateLink ingress)')
-output privateEndpointId string = app.ingress.kind == 'privateLink' ? privateEndpoint.id : ''
+output privateEndpointId string = config.ingress.kind == 'privateLink' ? privateEndpoint.id : ''
 
 @description('Private IP address of the private endpoint (if using privateLink ingress)')
-output privateIpAddress string = app.ingress.kind == 'privateLink' ? privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0] : ''
+output privateIpAddress string = config.ingress.kind == 'privateLink' ? privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0] : ''

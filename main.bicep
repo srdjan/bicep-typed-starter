@@ -16,7 +16,7 @@ import {
 } from './types/common.bicep'
 
 // Import helper functions for tag management
-import {mergeTags} from './lib/helpers.bicep'
+import {buildTags} from './lib/helpers.bicep'
 
 @description('Environment identifier (dev, test, or prod)')
 param env Env
@@ -38,18 +38,8 @@ param vnet VnetInput
 // TAG COMPOSITION - Using spread operator for cleaner merging
 // ============================================================================
 
-// Build base tags from required parameters
-var baseTags = {
-  env: env
-  owner: tags.owner
-  project: project
-}
-
-// Use spread operator to merge optional costCenter tag (replaces union())
-var commonTags = {
-  ...baseTags
-  ...((tags.costCenter != null) ? {costCenter: tags.costCenter} : {})
-}
+// Build complete tag set via shared helper
+var commonTags = buildTags(env, tags.owner, project, tags.costCenter, null)
 
 // ============================================================================
 // MODULE DEPLOYMENTS
@@ -61,10 +51,8 @@ module net './modules/network/vnet.bicep' = { name: 'net', params: { input: vnet
 module web './modules/app/appservice.bicep' = {
   name: 'web'
   params: {
-    app: {
-      ...app
-      tags: commonTags
-    }
+    config: app
+    tags: commonTags
   }
 }
 // ============================================================================

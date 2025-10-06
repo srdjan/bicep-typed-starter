@@ -1,6 +1,7 @@
 {
   "experimentalFeaturesEnabled": {
-    "userDefinedTypes": true
+    "userDefinedTypes": true,
+    "imports": true
   },
   "analyzers": {
     "core": {

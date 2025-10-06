@@ -1,28 +1,4 @@
-type NsgRule = {
-  @minLength(1)
-  @maxLength(80)
-  name: string
-  @description('Priority between 100-4096')
-  @minValue(100)
-  @maxValue(4096)
-  priority: int
-  direction: 'Inbound' | 'Outbound'
-  access: 'Allow' | 'Deny'
-  protocol: 'Tcp' | 'Udp' | 'Icmp' | '*'
-  sourcePortRange: string
-  destinationPortRange: string
-  sourceAddressPrefix: string
-  destinationAddressPrefix: string
-}
-
-type NsgInput = {
-  @minLength(1)
-  @maxLength(80)
-  name: string
-  location: string
-  rules: NsgRule[]
-  tags: object?
-}
+import {NsgRule, NsgInput} from '../../types/common.bicep'
 
 @description('Network Security Group configuration including rules')
 param input NsgInput
