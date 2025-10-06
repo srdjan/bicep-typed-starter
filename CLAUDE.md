@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a **typed Bicep starter template** demonstrating Azure Infrastructure as Code with strong typing using Bicep's user-defined types feature. The project showcases discriminated unions, type safety, modular architecture, and Microsoft Graph extensions for Entra ID resources.
+This is a **typed Bicep starter template** demonstrating Azure Infrastructure as Code with strong typing using Bicep's user-defined types feature. The project showcases discriminated unions, type safety, modular architecture, type/function imports with `@export/@import`, and Microsoft Graph extensions for Entra ID resources.
 
 ## Prerequisites
 
 - Azure CLI (2.50.0+) with Bicep CLI (0.30.0+) installed
-- `bicepconfig.json` enables experimental `userDefinedTypes` feature
+- `bicepconfig.json` enables experimental features: `userDefinedTypes` and `imports`
 - PSRule for Azure (optional, for policy validation)
 
 ## Common Commands
@@ -89,36 +89,93 @@ This project uses **discriminated unions** and **union types** to enforce correc
 ### Module Organization
 
 ```
-main.bicep              # Root orchestrator with type definitions and module composition
+main.bicep              # Root orchestrator using imported types and functions
+├── types/
+│   └── common.bicep    # Central type library with @export decorator
+├── lib/
+│   ├── helpers.bicep   # Reusable functions (@export) for tags, naming, SKU mapping
+│   ├── nsg-rules.bicep # Predefined NSG rule templates
+│   └── transformations.bicep # Data transformation utilities
 ├── modules/
-│   ├── network/        # Network resources (VNets, NSGs, subnets)
-│   │   ├── vnet.bicep  # Virtual Network with subnet configuration
-│   │   └── nsg.bicep   # Network Security Groups with rule definitions
+│   ├── network/        # Network resources (VNets, NSGs, App Gateway)
 │   ├── app/           # App Service Plan and Web App with managed identity
-│   └── monitor/       # Diagnostic settings with comprehensive logging
+│   ├── serverless/    # Function Apps with consumption/premium plans
+│   ├── monitor/       # Diagnostic settings with comprehensive logging
+│   ├── storage/       # Storage accounts with encryption and networking
+│   ├── edge/          # Azure Front Door for global load balancing
+│   ├── api/           # API Management for API gateway functionality
+│   ├── data/          # PostgreSQL flexible server with HA
+│   └── messaging/     # Event Hub namespaces and hubs
 ├── extensions/
 │   └── graph/         # Microsoft Graph resources (Entra ID groups/apps) - tenant scope
 ├── env/               # Environment-specific .bicepparam files
-├── examples/          # Usage examples for modules
+├── examples/          # Usage examples (complete-deployment, serverless, app-hosting, etc.)
 └── policy/            # PSRule validation rules
 ```
 
 **Key architectural decisions**:
-1. **Types defined at root** (`main.bicep`): Shared types like `Ingress`, `AppConfig`, `Region` are declared in the main file and re-declared in modules as needed (Bicep doesn't support type imports)
-2. **Modules are pure**: Each module declares its own parameter types and exposes typed outputs
-3. **Conditional deployment**: Uses `if` expressions for optional diagnostics: `module diag '...' = if (app.diagnostics!=null)`
-4. **Tag composition**: Common tags merged with module-specific tags via `union(tags, {...})`
+1. **Type imports with @export/@import**: Shared types defined in `types/common.bicep` and imported via `import {TypeName} from './types/common.bicep'` (requires Bicep 0.30+)
+2. **Function library**: Reusable functions in `lib/helpers.bicep` for tag composition, naming conventions, SKU mapping, and environment-specific defaults
+3. **Modules are composable**: Each module imports only the types it needs and exposes typed outputs
+4. **Conditional deployment**: Uses `if` expressions for optional features: `module diag '...' = if (app.diagnostics!=null)`
+5. **Tag composition**: Uses `buildTags()` function from helpers library for consistent tagging
+
+### Type Import/Export Pattern (Modern Bicep)
+
+This project uses Bicep's `@export/@import` feature (requires Bicep 0.30+ and `imports` experimental feature):
+
+**Exporting types and functions** (`types/common.bicep`):
+```bicep
+@export()
+@description('Environment identifier')
+type Env = 'dev' | 'test' | 'prod'
+
+@export()
+@description('Discriminated union for ingress configuration')
+@discriminator('kind')
+type Ingress =
+  | { kind: 'publicIp', sku: 'Basic' | 'Standard', dnsLabel: string? }
+  | { kind: 'privateLink', vnetId: string, subnetName: string }
+```
+
+**Importing types** (`main.bicep` or modules):
+```bicep
+import {
+  Env
+  Region
+  AppTier
+  Ingress
+  AppConfig
+} from './types/common.bicep'
+
+param env Env
+param app AppConfig
+```
+
+**Importing functions** (`lib/helpers.bicep`):
+```bicep
+import {buildTags} from './lib/helpers.bicep'
+
+var commonTags = buildTags(env, tags.owner, project, tags.costCenter, null)
+```
+
+**Benefits**:
+- Single source of truth for types and functions
+- Type safety across module boundaries
+- Refactor once, update everywhere
+- IntelliSense support for imported types
+- No type redeclaration needed (unlike older Bicep versions)
 
 ### Type Patterns in Use
 
-1. **Discriminated unions** (`Ingress`): Pattern matching via `kind` field enables conditional logic in modules
+1. **Discriminated unions** (`Ingress`, `AppGatewayBackendTarget`): Pattern matching via `kind` field enables conditional logic
    - `publicIp`: Public internet access with optional DNS label
    - `privateLink`: Private endpoint with VNet integration (fully implemented)
    - `appGateway`: Application Gateway integration (structure defined)
 2. **Optional properties** (`diagnostics?`, `costCenter?`, `capacity?`, `autoScale?`): Use `?` suffix for nullable fields
 3. **Nested structural types**: `AppConfig` embeds `Ingress`, `Diagnostics`, `TagPolicy`, and `AutoScaleSettings`
-4. **Parameter validation**: `@minLength`, `@maxLength`, `@minValue`, `@maxValue` decorators enforce constraints
-5. **Tier mapping**: SKU map object converts abstract tiers to Azure SKU names and tier strings
+4. **Parameter validation**: `@minLength`, `@maxLength`, `@minValue`, `@maxValue` decorators enforce constraints at type level
+5. **Type composition**: Complex types built from simpler ones (e.g., `FrontDoorConfig` composes `FrontDoorOriginGroup` and `FrontDoorRoute`)
 6. **Conditional resources**: Private endpoints, auto-scaling, diagnostics, and locks deploy conditionally based on configuration
 
 ### Parameter File Pattern
@@ -136,18 +193,30 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 ## Working with This Codebase
 
 ### Adding New Resource Types
-1. Define types in `main.bicep` if shared across modules
-2. Re-declare needed types in individual modules (no cross-file type imports)
-3. Use discriminated unions for polymorphic resources (follow `Ingress` pattern)
-4. Add `@description`, `@minLength`, `@maxLength` decorators for all parameters
+1. Define types in `types/common.bicep` with `@export()` decorator if shared across modules
+2. Import types using `import {TypeName} from '../types/common.bicep'` in modules that need them
+3. Use discriminated unions for polymorphic resources (follow `Ingress` or `AppGatewayBackendTarget` pattern)
+4. Add `@description`, `@minLength`, `@maxLength`, `@minValue`, `@maxValue` decorators for all type properties
+5. For complex type hierarchies, define supporting types first, then compose them (e.g., `FrontDoorOrigin` → `FrontDoorOriginGroup` → `FrontDoorConfig`)
 
 ### Adding New Modules
 1. Create module in `modules/<category>/<name>.bicep`
-2. Define input parameter types at module level with validation decorators
-3. Add `@description` to all parameters and outputs
-4. Export outputs with explicit types and descriptions
-5. Reference in `main.bicep` with typed parameters
-6. See `examples/` directory for usage patterns
+2. Import needed types: `import {TypeName1, TypeName2} from '../../types/common.bicep'`
+3. Import helper functions if needed: `import {buildTags, getSkuForTier} from '../../lib/helpers.bicep'`
+4. Define module parameters using imported types with `@description` decorators
+5. Export outputs with explicit types and descriptions
+6. Reference in `main.bicep` or composition templates
+7. Add usage example in `examples/` directory
+
+### Using Helper Functions
+The `lib/helpers.bicep` library provides reusable functions:
+- `buildTags()`: Merge common tags with custom tags
+- `generateResourceName()`: Standard naming convention for resources
+- `getSkuForTier()`: Map abstract tier to Azure SKU configuration
+- `getRetentionDaysForEnv()`: Environment-specific retention defaults
+- `buildAutoScaleSettings()`: Generate auto-scale config based on environment
+- `isProduction()`: Check if environment is production
+- Import with: `import {functionName} from './lib/helpers.bicep'`
 
 ### Security Best Practices
 - **Managed Identity**: All App Services have system-assigned identity enabled
@@ -165,11 +234,50 @@ Environment-specific configurations use `.bicepparam` files with `using` directi
 - **Policy**: PSRule validates against Azure Well-Architected Framework (see `policy/Rules/`)
 
 ### Common Type Errors
-- **Missing discriminator**: Ensure union variants have unique `kind` values
-- **Type redeclaration mismatch**: Types must match exactly between main and modules (including decorators). Bicep doesn't support type imports, so types are re-declared in each module
+- **Missing discriminator**: Ensure union variants have unique `kind` values (e.g., `kind: 'publicIp' | 'privateLink' | 'appGateway'`)
+- **Import path errors**: Use correct relative paths when importing types/functions (e.g., `'../../types/common.bicep'` from modules, `'./types/common.bicep'` from root)
+- **Circular imports**: Avoid circular dependencies between type/function files
 - **Null handling**: Use `!` non-null assertion operator when Bicep can't infer (`diag!.workspaceId`)
 - **Capacity limits**: App Service capacity is capped at 30 instances via `@maxValue(30)`
 - **Union type constraints**: Union members must share a single underlying primitive (all strings or all ints). Mixed unions like `'a' | 1` are invalid
+- **Missing @export**: Types and functions must have `@export()` decorator to be imported by other files
+
+## Module Catalog
+
+The project includes production-ready modules for common Azure services:
+
+### Compute & Hosting
+- **App Service** (`modules/app/appservice.bicep`): Web apps with managed identity, auto-scaling, private endpoints, TLS enforcement
+- **Function Apps** (`modules/serverless/functionapp.bicep`): Serverless compute with consumption/premium plans, VNet integration
+
+### Networking
+- **Virtual Network** (`modules/network/vnet.bicep`): VNets with subnets, delegations, NSG attachments
+- **Network Security Groups** (`modules/network/nsg.bicep`): Typed security rules with priority validation
+- **Application Gateway** (`modules/network/appgateway.bicep`): Layer 7 load balancer with WAF, health probes, routing rules
+- **Azure Front Door** (`modules/edge/frontdoor.bicep`): Global CDN with origin groups, routes, health probes
+
+### Data & Storage
+- **Storage Accounts** (`modules/storage/storageaccount.bicep`): Blob/file storage with encryption, networking, lifecycle policies
+- **PostgreSQL** (`modules/data/postgres-flexible.bicep`): Flexible server with HA, backup, VNet integration, database creation
+
+### Integration
+- **Event Hub** (`modules/messaging/eventhub.bicep`): Event streaming with namespace, hubs, consumer groups, auto-inflate
+- **API Management** (`modules/api/apim.bicep`): API gateway with virtual network integration, client certificates
+
+### Monitoring
+- **Diagnostics** (`modules/monitor/diagnostics.bicep`): Log Analytics integration for App Service (6 log categories + metrics)
+- **Storage Diagnostics** (`modules/monitor/diagnostics-storage.bicep`): Diagnostic settings for storage accounts
+
+### Identity (Extensions)
+- **Entra ID Groups** (`extensions/graph/entra-group.bicep`): Microsoft Graph extension for group creation
+- **App Registrations** (`extensions/graph/entra-app-registration.bicep`): Service principals with federated credentials
+
+All modules follow consistent patterns:
+- Import types from `types/common.bicep`
+- Use helper functions from `lib/helpers.bicep`
+- Comprehensive `@description` decorators
+- Typed inputs and outputs
+- Conditional resource deployment
 
 ## Advanced Features
 
@@ -218,16 +326,47 @@ This project follows the principles outlined in [docs/BICEP_BEST_PRACTICES.md](d
 
 ## Key Files
 
-- [main.bicep](main.bicep) - Root template with type definitions and module orchestration
-- [bicepconfig.json](bicepconfig.json) - Enables `userDefinedTypes` experimental feature
+### Core Infrastructure
+- [main.bicep](main.bicep) - Root orchestrator using imported types and functions
+- [bicepconfig.json](bicepconfig.json) - Enables experimental features: `userDefinedTypes` and `imports`
+
+### Type System
+- [types/common.bicep](types/common.bicep) - Central type library with all shared types (Env, Region, Ingress, AppConfig, etc.)
+- [lib/helpers.bicep](lib/helpers.bicep) - Reusable functions for tags, naming, SKU mapping, environment defaults
+- [lib/nsg-rules.bicep](lib/nsg-rules.bicep) - Predefined NSG rule templates
+- [lib/transformations.bicep](lib/transformations.bicep) - Data transformation utilities
+
+### Parameter Files
 - [env/dev.bicepparam](env/dev.bicepparam) - Development environment parameters
 - [env/prod.bicepparam](env/prod.bicepparam) - Production environment with auto-scaling and locks
 - [env/privatelink.bicepparam](env/privatelink.bicepparam) - Private Link configuration example
+
+### Modules
 - [modules/app/appservice.bicep](modules/app/appservice.bicep) - App Service with managed identity, security hardening, auto-scaling, private endpoints
-- [modules/network/vnet.bicep](modules/network/vnet.bicep) - Virtual Network with configurable location
+- [modules/serverless/functionapp.bicep](modules/serverless/functionapp.bicep) - Azure Function Apps with consumption/premium plans
+- [modules/network/vnet.bicep](modules/network/vnet.bicep) - Virtual Network with subnet configuration and delegations
 - [modules/network/nsg.bicep](modules/network/nsg.bicep) - Network Security Group with typed rules
-- [modules/monitor/diagnostics.bicep](modules/monitor/diagnostics.bicep) - Comprehensive diagnostic settings for App Service
+- [modules/network/appgateway.bicep](modules/network/appgateway.bicep) - Application Gateway with WAF support
+- [modules/edge/frontdoor.bicep](modules/edge/frontdoor.bicep) - Azure Front Door for global load balancing
+- [modules/api/apim.bicep](modules/api/apim.bicep) - API Management for API gateway functionality
+- [modules/data/postgres-flexible.bicep](modules/data/postgres-flexible.bicep) - PostgreSQL flexible server with HA and backup
+- [modules/storage/storageaccount.bicep](modules/storage/storageaccount.bicep) - Storage accounts with encryption and networking
+- [modules/messaging/eventhub.bicep](modules/messaging/eventhub.bicep) - Event Hub namespaces with consumer groups
+- [modules/monitor/diagnostics.bicep](modules/monitor/diagnostics.bicep) - Diagnostic settings for App Service
+- [modules/monitor/diagnostics-storage.bicep](modules/monitor/diagnostics-storage.bicep) - Diagnostic settings for Storage
+
+### Extensions
 - [extensions/graph/entra-group.bicep](extensions/graph/entra-group.bicep) - Microsoft Graph extension for Entra ID groups
-- [examples/nsg-example.bicep](examples/nsg-example.bicep) - Example NSG configuration with web app rules
+- [extensions/graph/entra-app-registration.bicep](extensions/graph/entra-app-registration.bicep) - Entra ID app registration with service principal
+
+### Examples
 - [examples/complete-deployment.bicep](examples/complete-deployment.bicep) - Full-featured deployment with NSG, VNet, App Service, auto-scaling, and locks
+- [examples/nsg-example.bicep](examples/nsg-example.bicep) - Example NSG configuration with web app rules
+- [examples/app-hosting-stack.bicep](examples/app-hosting-stack.bicep) - Complete app hosting stack with Front Door and App Gateway
+- [examples/serverless-multitier.bicep](examples/serverless-multitier.bicep) - Serverless architecture with Function Apps, Event Hubs, and Storage
+- [examples/advanced-features.bicep](examples/advanced-features.bicep) - Advanced scenarios with helper functions
+- [examples/deployment-stack.bicep](examples/deployment-stack.bicep) - Deployment stacks pattern
+
+### Documentation
 - [docs/BICEP_BEST_PRACTICES.md](docs/BICEP_BEST_PRACTICES.md) - Comprehensive guide on maximizing Bicep's type system
+- [README.md](README.md) - Complete project documentation with features and usage
